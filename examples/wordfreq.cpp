@@ -103,30 +103,25 @@ int main(int narg, char **args)
 
 void fileread(int itask, char *fname, KeyValue *kv, void *ptr)
 {
-  // filesize = # of bytes in file
-
-  struct stat stbuf;
-  int flag = stat(fname,&stbuf);
-  if (flag < 0) {
-    printf("ERROR: Could not query file size\n");
-    MPI_Abort(MPI_COMM_WORLD,1);
-  }
-  int filesize = stbuf.st_size;
-
   FILE *fp = fopen(fname,"r");
-  char *text = new char[filesize+1];
-  int nchar = fread(text,1,filesize,fp);
-  text[nchar] = '\0';
-  fclose(fp);
-
-  char *whitespace = " \t\n\f\r\0";
-  char *word = strtok(text,whitespace);
-  while (word) {
-    kv->add(word,strlen(word)+1,NULL,0);
-    word = strtok(NULL,whitespace);
+  if (fp == NULL) {
+    printf("ERROR: Could not query file %s\n", fname);
+    MPI_Abort(MPI_COMM_WORLD,1);
+    return;
   }
 
-  delete [] text;
+  char * line = NULL;
+  size_t len = 0;
+  ssize_t read;
+  int line_num = 0;
+  while ((read = getline(&line, &len, fp)) != -1) {
+    kv->add(line,strlen(line)+1,NULL,0);
+    ++line_num;
+  }
+  printf("%s has line num:%d\n", fname, line_num);
+  fclose(fp);
+  if (line)
+      free(line);
 }
 
 /* ----------------------------------------------------------------------
@@ -164,7 +159,6 @@ void output(uint64_t itask, char *key, int keybytes, char *value,
 {
   Count *count = (Count *) ptr;
   count->n++;
-  if (count->n > count->limit) return;
 
   int n = *(int *) value;
   if (count->flag) printf("%d %s\n",n,key);
